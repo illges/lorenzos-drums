@@ -14,6 +14,8 @@
 -- K1+K2 sets sequence length
 -- K1+K3 toggles playing
 
+---@diagnostic disable: undefined-global, lowercase-global
+
 if not string.find(package.cpath,"/home/we/dust/code/lorenzos-drums/lib/") then
   package.cpath=package.cpath..";/home/we/dust/code/lorenzos-drums/lib/?.so"
 end
@@ -249,24 +251,24 @@ end
 
 function trigger_ins(i)
   print("triggering "..i)
-  if params:get("record")==1 then
-    local ix=drm[i].ptn[1].seq.ix
-    local pos_current=drm[i].ptn[1].seq.data[ix]
-    local pos_next=pos_current+1
-    if ix==drm[i].ptn[1].seq.length then
-      pos_next=drm[i].ptn[1].seq.data[1]
-    end
-    local pos=pos_current
-    if clock.get_beats()-lattice_last_beat>clock.get_beat_sec()*drm[i].division*2 then
-      -- use next beat
-      pos=pos_next
-    end
-    if drm[i].ptn[1].data[pos]==0 then
-      drm[i].ptn[1].data[pos]=math.random(4,7)
-    else
-      drm[i].ptn[1].data[pos]=util.clamp(drm[i].ptn[1].data[pos]+math.random(1,2),0,15)
-    end
-  end
+  -- if params:get("record")==1 then
+  --   local ix=drm[i].ptn[1].seq.ix
+  --   local pos_current=drm[i].ptn[1].seq.data[ix]
+  --   local pos_next=pos_current+1
+  --   if ix==drm[i].ptn[1].seq.length then
+  --     pos_next=drm[i].ptn[1].seq.data[1]
+  --   end
+  --   local pos=pos_current
+  --   if clock.get_beats()-lattice_last_beat>clock.get_beat_sec()*drm[i].division*2 then
+  --     -- use next beat
+  --     pos=pos_next
+  --   end
+  --   if drm[i].ptn[1].data[pos]==0 then
+  --     drm[i].ptn[1].data[pos]=math.random(4,7)
+  --   else
+  --     drm[i].ptn[1].data[pos]=util.clamp(drm[i].ptn[1].data[pos]+math.random(1,2),0,15)
+  --   end
+  -- end
   local velocity=math.random(30,60)
   local pan=0
   local rate=0
@@ -440,6 +442,9 @@ function toggle_playing(on)
       lattice:hard_restart()
     else
       lattice:stop()
+      for _,d in ipairs(drm) do -- reset patterns when stopped by external source
+        d:reset()
+      end
     end
     do return end
   end
@@ -493,9 +498,21 @@ function redraw()
       message_text=""
     end
   end
-
+  display_mode()
   screen.update()
 end
+
+function display_mode()
+  local mode = "inc"
+    if g_.mode==1 then mode="inc"
+    elseif g_.mode==2 then mode="dec"
+    elseif g_.mode==3 then mode="erase"
+    else mode="length"
+    end
+    screen.level(15)
+    screen.move(5,13)
+    screen.text(mode)
+  end
 
 function draw_pattern()
   screen.aa(0)

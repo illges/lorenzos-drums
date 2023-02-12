@@ -1,3 +1,5 @@
+---@diagnostic disable: undefined-global, lowercase-global
+
 local GGrid={}
 
 local MODE_INCREASE=1
@@ -14,7 +16,9 @@ function GGrid:new(args)
   m.grid_on=args.grid_on==nil and true or args.grid_on
 
   -- initiate the grid
-  local grid=util.file_exists(_path.code.."midigrid") and include "midigrid/lib/mg_128" or grid
+  --local grid=util.file_exists(_path.code.."midigrid") and include "midigrid/lib/mg_128" or grid
+  local grid= grid
+
   m.g=grid.connect()
   m.g.key=function(x,y,z)
     if m.grid_on then
@@ -33,8 +37,8 @@ function GGrid:new(args)
     end
   end
 
-  m.mode=MODE_INCREASE
-  m.mode_prev=MODE_INCREASE
+  m.mode=MODE_ERASE
+  m.mode_prev=MODE_ERASE
 
   -- keep track of pressed buttons
   m.pressed_buttons={}
@@ -174,12 +178,21 @@ function GGrid:adj_ptn(row,col)
       drm[g_sel_drm].ptn[g_sel_ptn]:set_start_finish(pressed[1],pressed[2])
     end
   elseif self.mode==MODE_ERASE then
-    drm[g_sel_drm].ptn[g_sel_ptn]:gerase(row,col)
+    if drm[g_sel_drm].ptn[g_sel_ptn].data[self:get_step_num(row,col)] > 0 then -- check if step has a value
+      drm[g_sel_drm].ptn[g_sel_ptn]:gerase(row,col) -- erase if step data exists
+    else
+      drm[g_sel_drm].ptn[g_sel_ptn]:gdelta(row,col,5) -- set step to mid value if currently empty
+    end
+    --drm[g_sel_drm].ptn[g_sel_ptn]:gerase(row,col)
   elseif self.mode==MODE_INCREASE then
     drm[g_sel_drm].ptn[g_sel_ptn]:gdelta(row,col,1)
   elseif self.mode==MODE_DECREASE then
     drm[g_sel_drm].ptn[g_sel_ptn]:gdelta(row,col,-1)
   end
+end
+
+function GGrid:get_step_num(row,col)
+  return (row-1)*16+col
 end
 
 function GGrid:set_drm(i)
