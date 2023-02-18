@@ -193,8 +193,8 @@ function GGrid:adj_ptn(row,col)
     local pressed=self:get_pressed_m()
     if #pressed==1 then
       drm[target].ptn[g_sel_ptn]:set_finish(pressed[1]+offset)
-    elseif #pressed==2 then
-      drm[target].ptn[g_sel_ptn]:set_start_finish(pressed[1],pressed[2])
+    -- elseif #pressed==2 then
+    --   drm[target].ptn[g_sel_ptn]:set_start_finish(pressed[1],pressed[2])
     end
   elseif self.mode==MODE_ERASE then
     if drm[target].ptn[g_sel_ptn].data[step] > 0 then -- check if step has a value
