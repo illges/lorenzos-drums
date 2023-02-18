@@ -43,7 +43,8 @@ function GGrid:new(args)
   m.mode=MODE_ERASE
   m.mode_prev=MODE_ERASE
   m.kit_mod = MAIN_KIT
-  m.seq_mod = 1
+  m.seq_view = 1 -- current view
+  m.seq_mod = 1 -- total seq
 
   -- keep track of pressed buttons
   m.pressed_buttons={}
@@ -60,6 +61,10 @@ function GGrid:new(args)
   m.grid_refresh:start()
 
   return m
+end
+
+function GGrid:get_seq_view_offset()
+  return (self.seq_view-1)*16
 end
 
 function GGrid:grid_key(x,y,z)
@@ -115,17 +120,11 @@ function GGrid:key_press(row,col,on)
   elseif row<=5 then
     self:adj_ptn(row,col)
   elseif row==6 then
-    self:change_view(col)
+    self:adj_view(col)
   elseif row==8 and col<15 then -- TODO allow prob/reverse
     self:change_ptn(col)
   elseif row==8 and col>=15 then
     self:change_mode(col)
-  end
-end
-
-function GGrid:change_view(col)
-  if col <=2 then
-    self.kit_mod = self.kit_mod~=MAIN_KIT and MAIN_KIT or AUX_KIT
   end
 end
 
@@ -186,26 +185,51 @@ function GGrid:get_pressed_m()
 end
 
 function GGrid:adj_ptn(row,col)
-  local target=row+self.kit_mod
+  local target=row + self.kit_mod
+  local offset = self:get_seq_view_offset()
+  local step=col + offset
   if self.mode==MODE_LENGTH then
     print("adjusting length")
     local pressed=self:get_pressed_m()
     if #pressed==1 then
-      drm[target].ptn[g_sel_ptn]:set_finish(pressed[1])
+      drm[target].ptn[g_sel_ptn]:set_finish(pressed[1]+offset)
     elseif #pressed==2 then
       drm[target].ptn[g_sel_ptn]:set_start_finish(pressed[1],pressed[2])
     end
   elseif self.mode==MODE_ERASE then
-    if drm[target].ptn[g_sel_ptn].data[col] > 0 then -- check if step has a value
-      drm[target].ptn[g_sel_ptn]:gerase(col) -- erase if step data exists
+    if drm[target].ptn[g_sel_ptn].data[step] > 0 then -- check if step has a value
+      drm[target].ptn[g_sel_ptn]:gerase(step) -- erase if step data exists
     else
-      drm[target].ptn[g_sel_ptn]:gdelta(col,5) -- set step to mid value if currently empty
+      drm[target].ptn[g_sel_ptn]:gdelta(step,5) -- set step to mid value if currently empty
     end
     --drm[g_sel_drm].ptn[g_sel_ptn]:gerase(row,col)
   elseif self.mode==MODE_INCREASE then
-    drm[target].ptn[g_sel_ptn]:gdelta(col,1)
+    drm[target].ptn[g_sel_ptn]:gdelta(step,1)
   elseif self.mode==MODE_DECREASE then
-    drm[target].ptn[g_sel_ptn]:gdelta(col,-1)
+    drm[target].ptn[g_sel_ptn]:gdelta(step,-1)
+  end
+end
+
+function GGrid:adj_view(col)
+  if col <=2 then
+    self.kit_mod = self.kit_mod~=MAIN_KIT and MAIN_KIT or AUX_KIT
+  elseif col>=11 then
+    local new_mod = col-10
+    if self.mode==MODE_LENGTH then
+      local prev_mod = self.seq_mod
+      self.seq_mod = new_mod
+      for drum=1,9 do 
+        drm[drum].ptn[g_sel_ptn]:set_finish(self.seq_mod*16)
+        if self.seq_mod-prev_mod==1 then --if extending seq by one window then copy values over
+          for step=1,16 do
+            local prev_step = step + ((prev_mod-1)*16)
+            local new_step = step + ((new_mod-1)*16)
+            drm[drum].ptn[g_sel_ptn].data[new_step] = drm[drum].ptn[g_sel_ptn].data[prev_step]
+          end
+        end
+      end
+    end
+    self.seq_view = new_mod
   end
 end
 
@@ -278,10 +302,10 @@ function GGrid:get_visual()
   self.visual[6][1]=self.kit_mod==MAIN_KIT and 10 or 3
   self.visual[6][2]=self.kit_mod==AUX_KIT and 10 or 3
 
-
   -- show pattern
+  local step_mod = {false,false,false,false,false,false}
   for drum=1,5 do
-    local i=0
+    local i=self:get_seq_view_offset()
     local d=drm[drum+self.kit_mod].ptn[g_sel_ptn]
     for col=1,16 do
       i=i+1
@@ -293,11 +317,20 @@ function GGrid:get_visual()
         self.visual[drum][col]=0
       end
       if d.cur==i and lattice.enabled then
-        --self.visual[drum][col]=self.visual[drum][col]+1
         self.visual[drum][col]=10
+      elseif lattice.enabled then
+        step_mod[self:get_current_step_mod(d.cur)] = true
       end
     end
   end
+
+  -- TODO make it so current step is distinguished if in non focused view
+  self.visual[6][11] = self.seq_view == 1 and 12 or (step_mod[1] and 1 or (self.seq_mod >= 1 and 6 or 3))
+  self.visual[6][12] = self.seq_view == 2 and 12 or (step_mod[2] and 1 or (self.seq_mod >= 2 and 6 or 3))
+  self.visual[6][13] = self.seq_view == 3 and 12 or (step_mod[3] and 1 or (self.seq_mod >= 3 and 6 or 3))
+  self.visual[6][14] = self.seq_view == 4 and 12 or (step_mod[4] and 1 or (self.seq_mod >= 4 and 6 or 3))
+  self.visual[6][15] = self.seq_view == 5 and 12 or (step_mod[5] and 1 or (self.seq_mod >= 5 and 6 or 3))
+  self.visual[6][16] = self.seq_view == 6 and 12 or (step_mod[6] and 1 or (self.seq_mod >= 6 and 6 or 3))
 
   -- illuminate currently pressed button
   for k,_ in pairs(self.pressed_buttons) do
@@ -306,6 +339,20 @@ function GGrid:get_visual()
   end
 
   return self.visual
+end
+
+-- 1-16
+-- 17-32
+-- 33-48
+-- 49-64
+-- 65-80
+-- 81-96
+function GGrid:get_current_step_mod(step)
+  for mod=6,1,-1 do
+    if step>((mod-1)*16) then
+      return mod
+    end
+  end
 end
 
 function GGrid:grid_redraw()
