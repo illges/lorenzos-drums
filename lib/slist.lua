@@ -112,6 +112,10 @@ function Slist:gdelta(row,col,d)
   self:delta(i,d)
 end
 
+function Slist:gdelta(col,d)
+  self:delta(col,d)
+end
+
 function Slist:delta(i,d)
   if self.binary then
     self.data[i]=self.max_val-self.data[i]
@@ -123,6 +127,10 @@ end
 function Slist:gerase(row,col)
   local i=(row-1)*16+col
   self:erase(i)
+end
+
+function Slist:gerase(col)
+  self:erase(col)
 end
 
 function Slist:erase(i)

@@ -7,6 +7,9 @@ local MODE_DECREASE=2
 local MODE_ERASE=3
 local MODE_LENGTH=4
 
+local MAIN_KIT = 0
+local AUX_KIT = 4
+
 function GGrid:new(args)
   local m=setmetatable({},{
     __index=GGrid
@@ -39,10 +42,12 @@ function GGrid:new(args)
 
   m.mode=MODE_ERASE
   m.mode_prev=MODE_ERASE
+  m.kit_mod = MAIN_KIT
+  m.seq_mod = 1
 
   -- keep track of pressed buttons
   m.pressed_buttons={}
-  m.gesture_mode={true,true}
+  m.gesture_mode={false,false}
 
   -- grid refreshing
   m.grid_refresh=metro.init()
@@ -107,12 +112,20 @@ function GGrid:key_press(row,col,on)
   end
   if row==8 and col<=9 then
     self:set_drm(col)
-  elseif row<7 then
+  elseif row<=5 then
     self:adj_ptn(row,col)
+  elseif row==6 then
+    self:change_view(col)
   elseif row==8 and col<15 then -- TODO allow prob/reverse
     self:change_ptn(col)
   elseif row==8 and col>=15 then
     self:change_mode(col)
+  end
+end
+
+function GGrid:change_view(col)
+  if col <=2 then
+    self.kit_mod = self.kit_mod~=MAIN_KIT and MAIN_KIT or AUX_KIT
   end
 end
 
@@ -160,34 +173,39 @@ function GGrid:get_pressed_m()
   local pressed={}
   for k,_ in pairs(self.pressed_buttons) do
     local row,col=k:match("(%d+),(%d+)")
-    local m=(tonumber(row)-1)*16+tonumber(col)
-    if m<128 then
-      table.insert(pressed,m)
+    -- local m=(tonumber(row)-1)*16+tonumber(col)
+    -- if m<128 then
+    --   table.insert(pressed,m)
+    -- end
+    local step = tonumber(col)
+    if step<=16 then
+      table.insert(pressed,step)
     end
   end
   return pressed
 end
 
 function GGrid:adj_ptn(row,col)
+  local target=row+self.kit_mod
   if self.mode==MODE_LENGTH then
     print("adjusting length")
     local pressed=self:get_pressed_m()
     if #pressed==1 then
-      drm[g_sel_drm].ptn[g_sel_ptn]:set_finish(pressed[1])
+      drm[target].ptn[g_sel_ptn]:set_finish(pressed[1])
     elseif #pressed==2 then
-      drm[g_sel_drm].ptn[g_sel_ptn]:set_start_finish(pressed[1],pressed[2])
+      drm[target].ptn[g_sel_ptn]:set_start_finish(pressed[1],pressed[2])
     end
   elseif self.mode==MODE_ERASE then
-    if drm[g_sel_drm].ptn[g_sel_ptn].data[self:get_step_num(row,col)] > 0 then -- check if step has a value
-      drm[g_sel_drm].ptn[g_sel_ptn]:gerase(row,col) -- erase if step data exists
+    if drm[target].ptn[g_sel_ptn].data[col] > 0 then -- check if step has a value
+      drm[target].ptn[g_sel_ptn]:gerase(col) -- erase if step data exists
     else
-      drm[g_sel_drm].ptn[g_sel_ptn]:gdelta(row,col,5) -- set step to mid value if currently empty
+      drm[target].ptn[g_sel_ptn]:gdelta(col,5) -- set step to mid value if currently empty
     end
     --drm[g_sel_drm].ptn[g_sel_ptn]:gerase(row,col)
   elseif self.mode==MODE_INCREASE then
-    drm[g_sel_drm].ptn[g_sel_ptn]:gdelta(row,col,1)
+    drm[target].ptn[g_sel_ptn]:gdelta(col,1)
   elseif self.mode==MODE_DECREASE then
-    drm[g_sel_drm].ptn[g_sel_ptn]:gdelta(row,col,-1)
+    drm[target].ptn[g_sel_ptn]:gdelta(col,-1)
   end
 end
 
@@ -196,12 +214,12 @@ function GGrid:get_step_num(row,col)
 end
 
 function GGrid:set_drm(i)
-  if (self.mode==MODE_INCREASE or self.mode==MODE_DECREASE) and
+  if self.mode==MODE_DECREASE and
     i==g_sel_drm and lattice.enabled then
     -- toggle mute
     drm[i].muted=not drm[i].muted
   end
-  if self.mode==MODE_LENGTH or self.mode==MODE_ERASE or (not lattice.enabled) then
+  if self.mode==MODE_INCREASE or self.mode==MODE_LENGTH or self.mode==MODE_ERASE or (not lattice.enabled) then
     trigger_ins(i)
   end
   g_sel_drm=i
@@ -224,7 +242,14 @@ function GGrid:get_visual()
     if d.muted then
       self.visual[row][col]=1
     else
-      self.visual[row][col]=(g_sel_drm==col and 8 or 3)+(d.playing and 7 or 0)
+      --self.visual[row][col]=(g_sel_drm==col and 8 or 3)+(d.playing and 7 or 0)
+      if col<5 then
+        self.visual[row][col]=(self.kit_mod==MAIN_KIT and 6 or 3)+(d.playing and 7 or 0)
+      elseif col==5 then
+        self.visual[row][col]=6+(d.playing and 7 or 0)
+      elseif col>5 then
+        self.visual[row][col]=(self.kit_mod==AUX_KIT and 6 or 3)+(d.playing and 7 or 0)
+      end
     end
   end
 
@@ -249,15 +274,27 @@ function GGrid:get_visual()
   self.visual[8][15]=self.gesture_mode[1] and 10 or 3
   self.visual[8][16]=self.gesture_mode[2] and 10 or 3
 
+  -- show kit view
+  self.visual[6][1]=self.kit_mod==MAIN_KIT and 10 or 3
+  self.visual[6][2]=self.kit_mod==AUX_KIT and 10 or 3
+
+
   -- show pattern
-  local i=0
-  local d=drm[g_sel_drm].ptn[g_sel_ptn]
-  for row=1,6 do
+  for drum=1,5 do
+    local i=0
+    local d=drm[drum+self.kit_mod].ptn[g_sel_ptn]
     for col=1,16 do
       i=i+1
-      self.visual[row][col]=((i>=d.start and i<=d.finish) and 1 or 0)+d.data[i]
+      if i>=d.start and i<=d.finish then
+        self.visual[drum][col]=d.data[i] + 1
+      elseif d.data[i]>0 then
+        self.visual[drum][col]=2
+      else
+        self.visual[drum][col]=0
+      end
       if d.cur==i and lattice.enabled then
-        self.visual[row][col]=self.visual[row][col]+1
+        --self.visual[drum][col]=self.visual[drum][col]+1
+        self.visual[drum][col]=10
       end
     end
   end
