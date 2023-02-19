@@ -46,6 +46,8 @@ function GGrid:new(args)
   m.seq_view = 1 -- current view
   m.seq_mod = 1 -- total seq
 
+  m.seq_mod_visual = {0,0,0,0,0,0}
+
   -- keep track of pressed buttons
   m.pressed_buttons={}
   m.gesture_mode={false,false}
@@ -55,12 +57,26 @@ function GGrid:new(args)
   m.grid_refresh.time=0.03
   m.grid_refresh.event=function()
     if m.grid_on then
+      m:get_seq_mod_visuals()
       m:grid_redraw()
     end
   end
   m.grid_refresh:start()
 
   return m
+end
+
+function GGrid:get_seq_mod_visuals()
+  for i=1,6 do
+    if self.seq_mod_visual[i]>0 then
+        self.seq_mod_visual[i]=self.seq_mod_visual[i]-1
+        self:grid_redraw()
+    end
+    if self.seq_mod_visual[i]<0 then
+        self.seq_mod_visual[i]=0
+        self:grid_redraw()
+    end
+  end
 end
 
 function GGrid:get_seq_view_offset()
@@ -319,18 +335,19 @@ function GGrid:get_visual()
       if d.cur==i and lattice.enabled then
         self.visual[drum][col]=10
       elseif lattice.enabled then
-        step_mod[self:get_current_step_mod(d.cur)] = true
+        --self.seq_mod_visual[self:get_current_step_mod(d.cur)] = 16-(d.cur%16)
+        local mod = self:get_current_step_mod(d.cur)
+        self.seq_mod_visual[mod] = 16*mod-d.cur
       end
     end
   end
 
-  -- TODO make it so current step is distinguished if in non focused view
-  self.visual[6][11] = self.seq_view == 1 and 12 or (step_mod[1] and 1 or (self.seq_mod >= 1 and 6 or 3))
-  self.visual[6][12] = self.seq_view == 2 and 12 or (step_mod[2] and 1 or (self.seq_mod >= 2 and 6 or 3))
-  self.visual[6][13] = self.seq_view == 3 and 12 or (step_mod[3] and 1 or (self.seq_mod >= 3 and 6 or 3))
-  self.visual[6][14] = self.seq_view == 4 and 12 or (step_mod[4] and 1 or (self.seq_mod >= 4 and 6 or 3))
-  self.visual[6][15] = self.seq_view == 5 and 12 or (step_mod[5] and 1 or (self.seq_mod >= 5 and 6 or 3))
-  self.visual[6][16] = self.seq_view == 6 and 12 or (step_mod[6] and 1 or (self.seq_mod >= 6 and 6 or 3))
+  self.visual[6][11] = self.seq_view == 1 and 12 or (self.seq_mod_visual[1]>0 and self.seq_mod_visual[1] or (self.seq_mod >= 1 and 6 or 3))
+  self.visual[6][12] = self.seq_view == 2 and 12 or (self.seq_mod_visual[2]>0 and self.seq_mod_visual[2] or (self.seq_mod >= 2 and 6 or 3))
+  self.visual[6][13] = self.seq_view == 3 and 12 or (self.seq_mod_visual[3]>0 and self.seq_mod_visual[3] or (self.seq_mod >= 3 and 6 or 3))
+  self.visual[6][14] = self.seq_view == 4 and 12 or (self.seq_mod_visual[4]>0 and self.seq_mod_visual[4] or (self.seq_mod >= 4 and 6 or 3))
+  self.visual[6][15] = self.seq_view == 5 and 12 or (self.seq_mod_visual[5]>0 and self.seq_mod_visual[5] or (self.seq_mod >= 5 and 6 or 3))
+  self.visual[6][16] = self.seq_view == 6 and 12 or (self.seq_mod_visual[6]>0 and self.seq_mod_visual[6] or (self.seq_mod >= 6 and 6 or 3))
 
   -- illuminate currently pressed button
   for k,_ in pairs(self.pressed_buttons) do

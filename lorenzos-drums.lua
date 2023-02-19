@@ -146,6 +146,7 @@ function init()
         do return end
       end
       if msg.type=="continue" then
+        print("transport start via continue")
         toggle_playing(true)
       elseif msg.type=="stop" then
         toggle_playing(false)
@@ -158,7 +159,7 @@ function init()
     end
   end
   params:add_group("midi",2+(9*2))
-  params:add_option("midi_in","midi in",midi_device_list,1)
+  params:add_option("midi_in","midi in",midi_device_list,5)
   params:add_option("midi_out","midi out",midi_device_list,1)
   local DEFAULT_NOTES={
     -- General MIDI standard
