@@ -20,6 +20,7 @@ if not string.find(package.cpath,"/home/we/dust/code/lorenzos-drums/lib/") then
   package.cpath=package.cpath..";/home/we/dust/code/lorenzos-drums/lib/?.so"
 end
 json=require("cjson")
+local mft=include("lorenzos-drums/lib/mft")
 lattice_=include("lorenzos-drums/lib/lattice")
 instrument_=include("lorenzos-drums/lib/instrument")
 ggrid=include("lorenzos-drums/lib/ggrid")
@@ -137,29 +138,39 @@ function init()
   for _,dev in pairs(midi.devices) do
     table.insert(midi_device_list,dev.name)
     midi_devices[dev.name]=midi.connect(dev.port)
-    midi_devices[dev.name].event=function(data)
-      if dev.name~=midi_device_list[params:get("midi_in")] then
-        do return end
+    if dev.name=="Midi Fighter Twister" then
+      midi_devices[dev.name].event=function(data)
+        mft:new():event(data)
       end
-      local msg=midi.to_msg(data)
-      if msg.type=="clock" then
-        do return end
-      end
-      if msg.type=="continue" then
-        print("transport start via continue")
-        toggle_playing(true)
-      elseif msg.type=="stop" then
-        toggle_playing(false)
-      end
-      if msg.type=="note_on" then
-        if msg.ch<=9 and instruments[msg.ch]~=nil then
-          engine[instruments[msg.ch]](msg.vel,0.5,0,1,18000,0,0,0)
+    else
+      midi_devices[dev.name].event=function(data)
+        if dev.name~=midi_device_list[params:get("midi_in")] then
+          do return end
+        end
+        local msg=midi.to_msg(data)
+        if msg.type=="clock" then
+          do return end
+        end
+        if msg.type=="continue" or msg.type=="start" then
+          print("transport start via "..msg.type)
+          toggle_playing(true)
+        elseif msg.type=="stop" then
+          toggle_playing(false)
+        end
+        if msg.type=="note_on" then
+          if msg.ch<=9 and instruments[msg.ch]~=nil then
+            engine[instruments[msg.ch]](msg.vel,0.5,0,1,18000,0,0,0)
+          end
         end
       end
     end
   end
+  local midi_in = 1
+  for i=1,#midi_device_list do
+    if midi_device_list[i] == "OP-1" then midi_in = i end
+  end
   params:add_group("midi",2+(9*2))
-  params:add_option("midi_in","midi in",midi_device_list,5)
+  params:add_option("midi_in","midi in",midi_device_list,midi_in)
   params:add_option("midi_out","midi out",midi_device_list,1)
   local DEFAULT_NOTES={
     -- General MIDI standard
