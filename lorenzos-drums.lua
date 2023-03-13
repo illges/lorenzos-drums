@@ -20,7 +20,7 @@ if not string.find(package.cpath,"/home/we/dust/code/lorenzos-drums/lib/") then
   package.cpath=package.cpath..";/home/we/dust/code/lorenzos-drums/lib/?.so"
 end
 json=require("cjson")
-local mft=include("lorenzos-drums/lib/mft")
+local _mft=include("lorenzos-drums/lib/mft")
 lattice_=include("lorenzos-drums/lib/lattice")
 instrument_=include("lorenzos-drums/lib/instrument")
 ggrid=include("lorenzos-drums/lib/ggrid")
@@ -135,12 +135,14 @@ function init()
   -- setup midi
   midi_devices={}
   midi_device_list={"none"}
+  local mft = _mft:new()
   for _,dev in pairs(midi.devices) do
     table.insert(midi_device_list,dev.name)
     midi_devices[dev.name]=midi.connect(dev.port)
     if dev.name=="Midi Fighter Twister" then
+      mft.connected = true
       midi_devices[dev.name].event=function(data)
-        mft:new():event(data)
+        mft:event(data)
       end
     else
       midi_devices[dev.name].event=function(data)
@@ -259,6 +261,7 @@ function init()
       end
     }
   end
+  if mft.connected then mft:init() end
 end
 
 function trigger_ins(i)
