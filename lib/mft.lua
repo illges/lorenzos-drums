@@ -7,34 +7,40 @@ function mft:new(args)
       __index=mft
     })
     self.connected = false
+    self.param_map = {{},{},{},{},{}}
+    self.delta_map = {}
     return self
 end
 
 function mft:init()
-    -- bd mic 3 (kick mic)
-    local param_to_cc = util.round(util.linlin(-36,36,0,127,params:get("bdmic3")))
-    midi_devices["Midi Fighter Twister"]:cc(10,param_to_cc,1)
+    -- tab.print(self.param_map[1])
+    -- tab.print(self.param_map[5])
+    -- tab.print(self.delta_map)
 end
 
 function mft:event(data)
     local msg=midi.to_msg(data)
-    self:log_msg(msg)
+    --self:log_msg(msg)
 
-    if msg.cc==8 then
-        local d = msg.val==65 and 0.1 or -0.1
-        local val = params:get("bdvol")
-        params:set("bdvol", val + d)
-        local param_to_cc = util.round(util.linlin(-36,36,0,127,params:get("bdvol")))
-        midi_devices["Midi Fighter Twister"]:cc(msg.cc,param_to_cc,1)
-    end
+    if msg.ch==4 and msg.cc==13 then params:set("instrument_pattern", 1-params:get("instrument_pattern")) return end
 
-    if msg.cc==10 then
-        local d = msg.val==65 and 0.1 or -0.1
-        local val = params:get("bdmic3")
-        params:set("bdmic3", val + d)
-        local param_to_cc = util.round(util.linlin(-36,36,0,127,params:get("bdmic3")))
-        midi_devices["Midi Fighter Twister"]:cc(msg.cc,param_to_cc,1)
-    end
+    self:control(self.param_map[msg.ch][msg.cc], msg)
+end
+
+function mft:control(param, msg)
+    if param == nil then return end
+    local d = msg.val==65 and self.delta_map[param] or -self.delta_map[param]
+    local val = params:get(param)
+    params:set(param, val + d)
+    self:set(param, msg.ch, msg.cc)
+end
+
+function mft:set(param, channel, cc_num)
+    local min = params:get_range(param)[1]
+    min = min==-96 and -36 or min --for vol params the encoders will 0 at noon
+    local max = params:get_range(param)[2]
+    local param_to_cc = util.round(util.linlin(min,max,0,127,params:get(param)))
+    midi_devices["Midi Fighter Twister"]:cc(cc_num, param_to_cc, channel)
 end
 
 function mft:log_msg(msg)

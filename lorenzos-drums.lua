@@ -33,6 +33,8 @@ local message_count=0
 drm={}
 props={"velocity","accent +","accent -","pan right","pan left","rate up","rate down","reverse","skip %"}
 instruments={"bd","sd","cs","ch","oh","rc","ht","mt","lt"}
+vol_ch = 1
+shift_ch = 5
 disable_transport=false
 debounce_record={false,false,false,false,false,false,false,false,false}
 division_options_={"1/32","1/24","1/16","1/12","1/10","1/8","1/6","1/4","1/3","1/2","1","3/2","2"}
@@ -117,6 +119,8 @@ function init()
   end
 
   -- setup parameters
+  params:add{type="binary",name="instrument pattern",id="instrument_pattern",behavior="toggle", default=0}
+  params:set_action("instrument_pattern",function(x) g_:grid_redraw() end)
   local drum_pattern_options={}
   for k,_ in pairs(drum_patterns) do
     table.insert(drum_pattern_options,k)
@@ -194,14 +198,21 @@ function init()
   end
 
   params:add_group("mixer",#instruments)
-  for _,ins in ipairs(instruments) do
+  for i,ins in ipairs(instruments) do
     params:add{type="control",id=ins.."vol",name=ins,controlspec=controlspec.new(-96,36,'lin',0.1,0,'',0.1/(36+96)),formatter=function(v)
       local val=math.floor(util.linlin(0,1,v.controlspec.minval,v.controlspec.maxval,v.raw)*10)/10
       return ((val<0) and "" or "+")..val.." dB"
     end}
+    local cc_num = (i-1)*4
     params:set_action(ins.."vol",function(x)
       engine[ins.."_amp"](util.dbamp(x))
+      if mft.connected then mft:set(ins.."vol", vol_ch, cc_num) end
     end)
+    if mft.connected then
+      mft:set(ins.."vol", vol_ch, cc_num)
+      mft.param_map[vol_ch][cc_num] = ins.."vol"
+      mft.delta_map[ins.."vol"] = 0.1
+    end
   end
 
   params:add_group("effects",4)
@@ -219,9 +230,9 @@ function init()
     bd=3,
     sd=3,
     cs=3,
-    rc=3,
-    oh=2,
     ch=2,
+    oh=2,
+    rc=3,
     ht=2,
     mt=2,
     lt=2,
@@ -229,31 +240,84 @@ function init()
   local mic_names={"hat","snare","kick"}
   for ins_i,ins in ipairs(instruments) do
     local mic_num=mics[ins]
+    
+    local cc_num = ((ins_i-1)*4)
     params:add_group(ins,mic_num+7)
     params:add_option(ins.."division","clock division",division_options_,3)
     params:set_action(ins.."division",function(x)
       drm[ins_i].division=division_options[x]
+      if mft.connected then mft:set(ins.."division", shift_ch, cc_num) end
     end)
+    if mft.connected then
+      mft:set(ins.."division", shift_ch, cc_num)
+      mft.param_map[shift_ch][cc_num] = ins.."division"
+      mft.delta_map[ins.."division"] = 1
+    end
+
     params:add_control(ins.."swing","swing",controlspec.new(0,100,"lin",1,50,"%",1/100))
+    local swing_cc = cc_num+1
     params:set_action(ins.."swing",function(x)
       drm[ins_i].swing=math.floor(x)
+      if mft.connected then mft:set(ins.."swing", shift_ch, swing_cc) end
     end)
+    if mft.connected then
+      mft:set(ins.."swing", shift_ch, swing_cc)
+      mft.param_map[shift_ch][swing_cc] = ins.."swing"
+      mft.delta_map[ins.."swing"] = 1
+    end
+
     for i=1,mic_num do
       params:add{type="control",id=ins.."mic"..i,name=mic_names[i].." mic",controlspec=controlspec.new(-96,36,'lin',0.1,-9,'',0.1/(36+96)),formatter=function(v)
         local val=math.floor(util.linlin(0,1,v.controlspec.minval,v.controlspec.maxval,v.raw)*10)/10
         return ((val<0) and "" or "+")..val.." dB"
       end}
+      local mic_cc_num = cc_num+i
       params:set_action(ins.."mic"..i,function(x)
         if mic_num==2 then
           engine[ins.."_mix"](util.dbamp(params:get(ins.."mic1")),util.dbamp(params:get(ins.."mic2")))
         else
           engine[ins.."_mix"](util.dbamp(params:get(ins.."mic1")),util.dbamp(params:get(ins.."mic2")),util.dbamp(params:get(ins.."mic3")))
         end
+        if mft.connected then mft:set(ins.."mic"..i, vol_ch, mic_cc_num) end
       end)
+      if mft.connected then
+        mft:set(ins.."mic"..i, vol_ch, mic_cc_num)
+        mft.param_map[vol_ch][mic_cc_num] = ins.."mic"..i
+        mft.delta_map[ins.."mic"..i] = 0.1
+      end
     end
+
     params:add_control(ins.."pan","pan",controlspec.new(-1,1,"lin",0.01,0,"",0.01/2))
+    local pan_cc = cc_num+2
+    params:set_action(ins.."pan",function(x)
+      if mft.connected then mft:set(ins.."pan", shift_ch, pan_cc) end
+    end)
+    if mft.connected then
+      mft:set(ins.."pan", shift_ch, pan_cc)
+      mft.param_map[shift_ch][pan_cc] = ins.."pan"
+      mft.delta_map[ins.."pan"] = 0.01
+    end
+
     params:add_control(ins.."rate","rate",controlspec.new(-2,2,"lin",0.01,1,"x",0.01/2))
+
     params:add_control(ins.."reverbSend","reverb send",controlspec.new(0,100,"lin",1,0,"%",1/100))
+    local reverb_cc = cc_num+3
+    params:set_action(ins.."reverbSend",function(x)
+      if mft.connected then
+        mft:set(ins.."reverbSend", shift_ch, reverb_cc)
+        if mic_num == 2 then mft:set(ins.."reverbSend", vol_ch, reverb_cc) end
+      end
+    end)
+    if mft.connected then
+      mft:set(ins.."reverbSend", shift_ch, reverb_cc)
+      mft.param_map[shift_ch][reverb_cc] = ins.."reverbSend"
+      mft.delta_map[ins.."reverbSend"] = 1
+      if mic_num == 2 then
+        mft:set(ins.."reverbSend", vol_ch, reverb_cc)
+        mft.param_map[vol_ch][reverb_cc] = ins.."reverbSend"
+      end
+    end
+
     params:add_control(ins.."delaySend","delay send",controlspec.new(0,100,"lin",1,0,"%",1/100))
     params:add{type="binary",name="trigger",id=ins.."trigger",behavior="trigger",
       action=function(v)
