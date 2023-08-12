@@ -21,6 +21,7 @@ if not string.find(package.cpath,"/home/we/dust/code/lorenzos-drums/lib/") then
 end
 json=require("cjson")
 local _mft=include("lorenzos-drums/lib/mft")
+mft_param = ""
 lattice_=include("lorenzos-drums/lib/lattice")
 instrument_=include("lorenzos-drums/lib/instrument")
 ggrid=include("lorenzos-drums/lib/ggrid")
@@ -80,6 +81,7 @@ function init()
 
   -- setup the redrawing
   show_grid=0
+  show_dials=0
   local counter=metro.init()
   counter.time=1/10
   counter.count=-1
@@ -87,6 +89,9 @@ function init()
     redraw()
     if show_grid>0 then
       show_grid=show_grid-1
+    end
+    if show_dials>0 then
+      show_dials=show_dials-1
     end
   end
   counter:start()
@@ -206,13 +211,9 @@ function init()
     local cc_num = (i-1)*4
     params:set_action(ins.."vol",function(x)
       engine[ins.."_amp"](util.dbamp(x))
-      if mft.connected then mft:set(ins.."vol", vol_ch, cc_num) end
-    end)
-    if mft.connected then
       mft:set(ins.."vol", vol_ch, cc_num)
-      mft.param_map[vol_ch][cc_num] = ins.."vol"
-      mft.delta_map[ins.."vol"] = 0.1
-    end
+    end)
+    mft:init_param(ins.."vol", vol_ch, cc_num, 0.1)
   end
 
   params:add_group("effects",4)
@@ -246,25 +247,17 @@ function init()
     params:add_option(ins.."division","clock division",division_options_,3)
     params:set_action(ins.."division",function(x)
       drm[ins_i].division=division_options[x]
-      if mft.connected then mft:set(ins.."division", shift_ch, cc_num) end
-    end)
-    if mft.connected then
       mft:set(ins.."division", shift_ch, cc_num)
-      mft.param_map[shift_ch][cc_num] = ins.."division"
-      mft.delta_map[ins.."division"] = 1
-    end
+    end)
+    mft:init_param(ins.."division", shift_ch, cc_num, 1)
 
     params:add_control(ins.."swing","swing",controlspec.new(0,100,"lin",1,50,"%",1/100))
     local swing_cc = cc_num+1
     params:set_action(ins.."swing",function(x)
       drm[ins_i].swing=math.floor(x)
-      if mft.connected then mft:set(ins.."swing", shift_ch, swing_cc) end
-    end)
-    if mft.connected then
       mft:set(ins.."swing", shift_ch, swing_cc)
-      mft.param_map[shift_ch][swing_cc] = ins.."swing"
-      mft.delta_map[ins.."swing"] = 1
-    end
+    end)
+    mft:init_param(ins.."swing", shift_ch, swing_cc, 1)
 
     for i=1,mic_num do
       params:add{type="control",id=ins.."mic"..i,name=mic_names[i].." mic",controlspec=controlspec.new(-96,36,'lin',0.1,-9,'',0.1/(36+96)),formatter=function(v)
@@ -278,44 +271,29 @@ function init()
         else
           engine[ins.."_mix"](util.dbamp(params:get(ins.."mic1")),util.dbamp(params:get(ins.."mic2")),util.dbamp(params:get(ins.."mic3")))
         end
-        if mft.connected then mft:set(ins.."mic"..i, vol_ch, mic_cc_num) end
-      end)
-      if mft.connected then
         mft:set(ins.."mic"..i, vol_ch, mic_cc_num)
-        mft.param_map[vol_ch][mic_cc_num] = ins.."mic"..i
-        mft.delta_map[ins.."mic"..i] = 0.1
-      end
+      end)
+      mft:init_param(ins.."mic"..i, vol_ch, mic_cc_num, 0.1)
     end
 
     params:add_control(ins.."pan","pan",controlspec.new(-1,1,"lin",0.01,0,"",0.01/2))
     local pan_cc = cc_num+2
     params:set_action(ins.."pan",function(x)
-      if mft.connected then mft:set(ins.."pan", shift_ch, pan_cc) end
-    end)
-    if mft.connected then
       mft:set(ins.."pan", shift_ch, pan_cc)
-      mft.param_map[shift_ch][pan_cc] = ins.."pan"
-      mft.delta_map[ins.."pan"] = 0.01
-    end
+    end)
+    mft:init_param(ins.."pan", shift_ch, pan_cc, 0.01)
 
     params:add_control(ins.."rate","rate",controlspec.new(-2,2,"lin",0.01,1,"x",0.01/2))
 
     params:add_control(ins.."reverbSend","reverb send",controlspec.new(0,100,"lin",1,0,"%",1/100))
     local reverb_cc = cc_num+3
     params:set_action(ins.."reverbSend",function(x)
-      if mft.connected then
-        mft:set(ins.."reverbSend", shift_ch, reverb_cc)
-        if mic_num == 2 then mft:set(ins.."reverbSend", vol_ch, reverb_cc) end
-      end
-    end)
-    if mft.connected then
       mft:set(ins.."reverbSend", shift_ch, reverb_cc)
-      mft.param_map[shift_ch][reverb_cc] = ins.."reverbSend"
-      mft.delta_map[ins.."reverbSend"] = 1
-      if mic_num == 2 then
-        mft:set(ins.."reverbSend", vol_ch, reverb_cc)
-        mft.param_map[vol_ch][reverb_cc] = ins.."reverbSend"
-      end
+      if mic_num == 2 then mft:set(ins.."reverbSend", vol_ch, reverb_cc) end
+    end)
+    mft:init_param(ins.."reverbSend", shift_ch, reverb_cc, 1)
+    if mic_num == 2 then
+      mft:init_param(ins.."reverbSend", vol_ch, reverb_cc, 1)
     end
 
     params:add_control(ins.."delaySend","delay send",controlspec.new(0,100,"lin",1,0,"%",1/100))
@@ -553,8 +531,11 @@ function redraw()
   screen.clear()
   if show_grid>0 then
     draw_pattern()
+  elseif show_dials>0 then
+    draw_dials()
   else
     draw_drums()
+    display_mode()
   end
   screen.level(15)
   screen.move(120,7)
@@ -577,21 +558,28 @@ function redraw()
       message_text=""
     end
   end
-  display_mode()
   screen.update()
 end
 
 function display_mode()
   local mode = "inc"
-    if g_.mode==1 then mode="inc"
-    elseif g_.mode==2 then mode="dec"
-    elseif g_.mode==3 then mode="erase"
-    else mode="length"
-    end
-    screen.level(15)
-    screen.move(5,13)
-    screen.text(mode)
+  if g_.mode==1 then mode="inc"
+  elseif g_.mode==2 then mode="dec"
+  elseif g_.mode==3 then mode="erase"
+  else mode="length"
   end
+  screen.level(15)
+  screen.move(0,13)
+  screen.text(mode)
+end
+
+function draw_dials()
+  screen.level(15)
+  screen.move(40,35)
+  screen.text(mft_param)
+  screen.move(60,50)
+  screen.text(params:get(mft_param))
+end
 
 function draw_pattern()
   screen.aa(0)

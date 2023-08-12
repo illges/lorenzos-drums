@@ -19,6 +19,7 @@ function mft:init()
 end
 
 function mft:event(data)
+    if not self.connected then return end
     local msg=midi.to_msg(data)
     --self:log_msg(msg)
 
@@ -29,6 +30,8 @@ end
 
 function mft:control(param, msg)
     if param == nil then return end
+    mft_param = param
+    show_dials = 15
     local d = msg.val==65 and self.delta_map[param] or -self.delta_map[param]
     local val = params:get(param)
     params:set(param, val + d)
@@ -36,11 +39,19 @@ function mft:control(param, msg)
 end
 
 function mft:set(param, channel, cc_num)
+    if not self.connected then return end
     local min = params:get_range(param)[1]
     min = min==-96 and -36 or min --for vol params the encoders will 0 at noon
     local max = params:get_range(param)[2]
     local param_to_cc = util.round(util.linlin(min,max,0,127,params:get(param)))
     midi_devices["Midi Fighter Twister"]:cc(cc_num, param_to_cc, channel)
+end
+
+function mft:init_param(param, ch, cc, d)
+    if not self.connected then return end
+    self:set(param, ch, cc)
+    self.param_map[ch][cc] = param
+    self.delta_map[param] = d
 end
 
 function mft:log_msg(msg)
