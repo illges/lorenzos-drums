@@ -22,9 +22,6 @@ function mft:event(data)
     if not self.connected then return end
     local msg=midi.to_msg(data)
     --self:log_msg(msg)
-
-    if msg.ch==4 and msg.cc==13 then params:set("instrument_pattern", 1-params:get("instrument_pattern")) return end
-
     self:control(self.param_map[msg.ch][msg.cc], msg)
 end
 
@@ -41,7 +38,6 @@ end
 function mft:set(param, channel, cc_num)
     if not self.connected then return end
     local min = params:get_range(param)[1]
-    min = min==-96 and -36 or min --for vol params the encoders will 0 at noon
     local max = params:get_range(param)[2]
     local param_to_cc = util.round(util.linlin(min,max,0,127,params:get(param)))
     midi_devices["Midi Fighter Twister"]:cc(cc_num, param_to_cc, channel)

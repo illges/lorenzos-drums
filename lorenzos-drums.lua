@@ -204,7 +204,7 @@ function init()
 
   params:add_group("mixer",#instruments)
   for i,ins in ipairs(instruments) do
-    params:add{type="control",id=ins.."vol",name=ins,controlspec=controlspec.new(-96,36,'lin',0.1,0,'',0.1/(36+96)),formatter=function(v)
+    params:add{type="control",id=ins.."vol",name=ins,controlspec=controlspec.new(-36,36,'lin',0.1,0,'',0.1/(36+96)),formatter=function(v)
       local val=math.floor(util.linlin(0,1,v.controlspec.minval,v.controlspec.maxval,v.raw)*10)/10
       return ((val<0) and "" or "+")..val.." dB"
     end}
@@ -260,7 +260,7 @@ function init()
     mft:init_param(ins.."swing", shift_ch, swing_cc, 1)
 
     for i=1,mic_num do
-      params:add{type="control",id=ins.."mic"..i,name=mic_names[i].." mic",controlspec=controlspec.new(-96,36,'lin',0.1,-9,'',0.1/(36+96)),formatter=function(v)
+      params:add{type="control",id=ins.."mic"..i,name=mic_names[i].." mic",controlspec=controlspec.new(-36,36,'lin',0.1,-9,'',0.1/(36+96)),formatter=function(v)
         local val=math.floor(util.linlin(0,1,v.controlspec.minval,v.controlspec.maxval,v.raw)*10)/10
         return ((val<0) and "" or "+")..val.." dB"
       end}
