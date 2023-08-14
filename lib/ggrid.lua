@@ -95,7 +95,7 @@ end
 function GGrid:key_press(row,col,on)
   if on then
     self.pressed_buttons[row..","..col]=true
-    if row==7 then
+    if row==7 and col<15 then
       self.pressed_buttons[row..","..col]=clock.run(function()
         clock.sleep(0.6)
         drm[g_sel_drm]:bank_save(col)
@@ -104,7 +104,7 @@ function GGrid:key_press(row,col,on)
       end)
     end
   else
-    if row==7 then
+    if row==7 and col<15 then
       local saved=self.just_saved
       clock.cancel(self.pressed_buttons[row..","..col])
       self.just_saved=false
@@ -116,7 +116,7 @@ function GGrid:key_press(row,col,on)
     self.pressed_buttons[row..","..col]=nil
   end
   if not on then
-    if row==7 then
+    if row==7 and col<15 then
       if self.just_saved==nil or self.just_saved==false then
         -- make sure bank exists
         if not drm[g_sel_drm]:bank_exists(col) then
@@ -135,7 +135,12 @@ function GGrid:key_press(row,col,on)
       return
     end
   end
-  if row==8 and col<=9 then
+  if row==7 and col==15 then
+    params:set("record",1-params:get("record"))
+  elseif row==7 and col==16 then
+    params:set("instrument_pattern", 1-params:get("instrument_pattern"))
+  elseif row==8 and col<=9 then
+    -- TODO adjust view if in record mode
     self:set_drm(col)
   elseif row==8 and col<15 then -- TODO allow prob/reverse
     self:change_ptn(col)
@@ -155,7 +160,6 @@ function GGrid:key_press(row,col,on)
 end
 
 function GGrid:change_mode(col)
-  params:set("record",0)
   self.gesture_mode[col-14]=not self.gesture_mode[col-14]
   if self.gesture_mode[1]==true and self.gesture_mode[2]==true then
     self.mode=MODE_INCREASE
@@ -163,7 +167,6 @@ function GGrid:change_mode(col)
     self.mode=MODE_DECREASE
   elseif self.gesture_mode[1]==false and self.gesture_mode[2]==false then
     self.mode=MODE_ERASE
-    params:set("record",1)
   else
     self.mode=MODE_LENGTH
   end
@@ -316,7 +319,7 @@ function GGrid:get_visual()
   end
 
   -- show saved banks
-  for i=1,16 do
+  for i=1,14 do
     if drm[g_sel_drm].banks[i]~=nil then
       self.visual[7][i]=4
       if drm[g_sel_drm].bankseq_current==i then
@@ -326,6 +329,8 @@ function GGrid:get_visual()
   end
 
   -- show mode
+  self.visual[7][15]=params:get("record")==1 and 10 or 1
+  self.visual[7][16]=params:get("instrument_pattern")==1 and 10 or 1
   self.visual[8][15]=self.gesture_mode[1] and 10 or 3
   self.visual[8][16]=self.gesture_mode[2] and 10 or 3
 
