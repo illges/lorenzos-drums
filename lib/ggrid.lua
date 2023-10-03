@@ -140,8 +140,12 @@ function GGrid:key_press(row,col,on)
   elseif row==7 and col==16 then
     params:set("instrument_pattern", 1-params:get("instrument_pattern"))
   elseif row==8 and col<=9 then
-    -- TODO adjust view if in record mode
     self:set_drm(col)
+    if col<=4 then
+      self:adj_view(1)
+    elseif col>=6 then
+      self:adj_view(2)
+    end
   elseif row==8 and col<15 then -- TODO allow prob/reverse
     self:change_ptn(col)
   elseif row==8 and col>=15 then
@@ -242,8 +246,10 @@ function GGrid:adj_ptn(row,col)
 end
 
 function GGrid:adj_view(col)
-  if col <=2 then
-    self.kit_mod = self.kit_mod~=MAIN_KIT and MAIN_KIT or AUX_KIT
+  if col==1 then
+    self.kit_mod = MAIN_KIT
+  elseif col==2 then
+    self.kit_mod = AUX_KIT
   elseif col>=11 then
     local new_mod = col-10
     if self.mode==MODE_LENGTH then
@@ -362,12 +368,9 @@ function GGrid:get_visual()
         end
       end
     end
-    self.visual[6][11] = self.seq_view == 1 and 12 or (self.seq_mod_visual[1]>0 and self.seq_mod_visual[1] or (self.seq_mod >= 1 and 6 or 3))
-    self.visual[6][12] = self.seq_view == 2 and 12 or (self.seq_mod_visual[2]>0 and self.seq_mod_visual[2] or (self.seq_mod >= 2 and 6 or 3))
-    self.visual[6][13] = self.seq_view == 3 and 12 or (self.seq_mod_visual[3]>0 and self.seq_mod_visual[3] or (self.seq_mod >= 3 and 6 or 3))
-    self.visual[6][14] = self.seq_view == 4 and 12 or (self.seq_mod_visual[4]>0 and self.seq_mod_visual[4] or (self.seq_mod >= 4 and 6 or 3))
-    self.visual[6][15] = self.seq_view == 5 and 12 or (self.seq_mod_visual[5]>0 and self.seq_mod_visual[5] or (self.seq_mod >= 5 and 6 or 3))
-    self.visual[6][16] = self.seq_view == 6 and 12 or (self.seq_mod_visual[6]>0 and self.seq_mod_visual[6] or (self.seq_mod >= 6 and 6 or 3))
+    for bar=1,6 do
+      self.visual[6][bar+10] = self.seq_view == bar and 12 or (self.seq_mod_visual[bar]>0 and self.seq_mod_visual[bar] or (self.seq_mod >= bar and 6 or 3))
+    end
   else
     local i=0
     local d=drm[g_sel_drm].ptn[g_sel_ptn]
