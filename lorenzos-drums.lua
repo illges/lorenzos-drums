@@ -459,15 +459,16 @@ function key(k,z)
   if k==1 then
     shift=z==1
   elseif k>=2 then
+    local seq_end = g_:instrument_seq() and 7 or 6
     if shift and k==3 and z==1 then
       toggle_playing()
-    elseif shift and z==1 then
-      drm[g_sel_drm].ptn[g_sel_ptn]:set_finish((cursor[1]-1)*16+cursor[2])
+    elseif shift and z==1 and cursor[1]<seq_end then
+      g_:set_finish_key(cursor[1],cursor[2])
       show_grid=30
-    elseif z==1 and cursor[1]<7 then
-      drm[g_sel_drm].ptn[g_sel_ptn]:gdelta(cursor[1],cursor[2],k==2 and-1 or 1)
+    elseif z==1 and cursor[1]<seq_end then
+      g_:adj_ptn_key(cursor[1],cursor[2],k==2 and-1 or 1)
       show_grid=30
-    elseif cursor[1]==7 then
+    elseif cursor[1]>=seq_end then
       g_:key_press(cursor[1],cursor[2],z==1)
     end
   end

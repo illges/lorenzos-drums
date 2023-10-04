@@ -245,6 +245,20 @@ function GGrid:adj_ptn(row,col)
   end
 end
 
+function GGrid:adj_ptn_key(row,col,d)
+  local target = self:instrument_seq() and g_sel_drm or row + self.kit_mod
+  local offset = self:instrument_seq() and 0 or self:get_seq_view_offset()
+  local step = self:instrument_seq() and self:get_step_num(row,col) or col + offset
+  drm[target].ptn[g_sel_ptn]:gdelta(step,d)
+end
+
+function GGrid:set_finish_key(row,col)
+  local target = self:instrument_seq() and g_sel_drm or row + self.kit_mod
+  local offset = self:instrument_seq() and 0 or self:get_seq_view_offset()
+  local step = self:instrument_seq() and self:get_step_num(row,col) or col + offset
+  drm[target].ptn[g_sel_ptn]:set_finish(step+offset)
+end
+
 function GGrid:adj_view(col)
   if col==1 then
     self.kit_mod = MAIN_KIT
