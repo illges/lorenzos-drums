@@ -533,45 +533,50 @@ function redraw()
   screen.clear()
   if show_grid>0 then
     draw_pattern()
-  elseif mft.show_update_count>0 then
-    draw_dials()
+  -- elseif mft.show_update_count>0 then
+  --   draw_dials()
   else
     draw_drums()
     display_mode()
   end
   screen.level(15)
   screen.move(120,7)
-  screen.text_right(instruments[g_sel_drm].." / "..props[g_sel_ptn].."  "..(lattice.enabled and ">" or "||"))
-
-  if message_count>0 then
-    message_count=message_count-1
-    screen.level(0)
-    x=64
-    y=28
-    w=string.len(message_text)*6
-    screen.rect(x-w/2,y,w,10)
-    screen.fill()
-    screen.level(15)
-    screen.rect(x-w/2,y,w,10)
-    screen.stroke()
-    screen.move(x,y+7)
-    screen.text_center(message_text)
-    if message_count==0 then
-      message_text=""
+  if mft.show_update_count>0 then
+    screen.text_right(mft.updated_param.." : "..params:get(mft.updated_param))
+  else
+    screen.text_right(instruments[g_sel_drm].." / "..props[g_sel_ptn].."  "..(lattice.enabled and ">" or "||"))
+  
+    if message_count>0 then
+      message_count=message_count-1
+      screen.level(0)
+      x=64
+      y=28
+      w=string.len(message_text)*6
+      screen.rect(x-w/2,y,w,10)
+      screen.fill()
+      screen.level(15)
+      screen.rect(x-w/2,y,w,10)
+      screen.stroke()
+      screen.move(x,y+7)
+      screen.text_center(message_text)
+      if message_count==0 then
+        message_text=""
+      end
     end
   end
+  
   screen.update()
 end
 
 function display_mode()
-  local mode = "inc"
-  if g_.mode==1 then mode="inc"
-  elseif g_.mode==2 then mode="dec"
-  elseif g_.mode==3 then mode="erase"
-  else mode="length"
+  local mode = "INC"
+  if g_.mode==1 then mode="INC"
+  elseif g_.mode==2 then mode="DEC"
+  elseif g_.mode==3 then mode="ERA"
+  else mode="LEN"
   end
   screen.level(15)
-  screen.move(0,13)
+  screen.move(0,7)
   screen.text(mode)
 end
 
