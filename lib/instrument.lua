@@ -170,7 +170,17 @@ function Instrument:emit(velocity,pan,rate,lpf)
   engine[self.name](velocity,amp,pan,rate,lpf,sendReverb,sendDelay,startPos)
   if params:get("midi_out")>1 then
     local m=midi_devices[midi_device_list[params:get("midi_out")]]
-    m:note_on(params:get(self.name.."_midi_note"),velocity,params:get(self.name.."_midi_chan"))
+    local note = params:get(self.name.."_midi_note")
+    local ch = params:get(self.name.."_midi_chan")
+    local vel = math.floor(velocity+0.5)
+    print(note,vel,ch)
+    m:note_on(note,vel,ch)
+    clock.run(
+      function()
+          clock.sleep(0.1)
+          m:note_off(note,vel,ch)
+      end
+    )
   end
 end
 
