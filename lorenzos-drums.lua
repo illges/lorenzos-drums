@@ -542,7 +542,7 @@ function redraw()
   screen.level(15)
   screen.move(120,7)
   if mft.show_update_count>0 then
-    screen.text_right(mft.updated_param.." : "..params:get(mft.updated_param))
+    display_mft_update()
   else
     screen.text_right(instruments[g_sel_drm].." / "..props[g_sel_ptn].."  "..(lattice.enabled and ">" or "||"))
   
@@ -566,6 +566,14 @@ function redraw()
   end
   
   screen.update()
+end
+
+function display_mft_update()
+  if string.find(mft.updated_param, "division") then
+    screen.text_right(mft.updated_param.." : "..division_options_[params:get(mft.updated_param)])
+  else
+    screen.text_right(mft.updated_param.." : "..params:get(mft.updated_param))
+  end
 end
 
 function display_mode()
