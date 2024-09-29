@@ -20,8 +20,11 @@ if not string.find(package.cpath,"/home/we/dust/code/lorenzos-drums/lib/") then
   package.cpath=package.cpath..";/home/we/dust/code/lorenzos-drums/lib/?.so"
 end
 json=require("cjson")
-local _mft=include("lorenzos-drums/lib/mft")
 local mft
+local _pacifist
+if util.file_exists("/home/we/dust/code/pacifist_dev/lib/_pacifist.lua") then
+  _pacifist=include("pacifist_dev/lib/_pacifist")
+end
 lattice_=include("lorenzos-drums/lib/lattice")
 instrument_=include("lorenzos-drums/lib/instrument")
 ggrid=include("lorenzos-drums/lib/ggrid")
@@ -84,12 +87,11 @@ function init()
   counter.count=-1
   counter.event=function()
     redraw()
+    redraw_mft()
     if show_grid>0 then
       show_grid=show_grid-1
     end
-    if mft.show_update_count>0 then
-      mft.show_update_count=mft.show_update_count-1
-    end
+    mft:activity_countdown()
   end
   counter:start()
 
@@ -141,39 +143,31 @@ function init()
   -- setup midi
   midi_devices={}
   midi_device_list={"none"}
-  mft = _mft:new()
   for _,dev in pairs(midi.devices) do
     table.insert(midi_device_list,dev.name)
-    if dev.name=="Midi Fighter Twister" then
-      local device={
-        name=dev.name,
-        port=dev.port,
-        midi=midi.connect(dev.port),
-      }
-      mft:init(device, "/home/we/dust/code/lorenzos-drums/lib/config/lorenzo.mfs")
-      device.midi.event=function(data)
-        mft:event(data)
+    local device={
+      name=dev.name,
+      port=dev.port,
+      midi=midi.connect(dev.port),
+    }
+    midi_devices[dev.name]=device
+    midi_devices[dev.name].midi.event=function(data)
+      if dev.name~=midi_device_list[params:get("midi_in")] then
+        do return end
       end
-    else
-      midi_devices[dev.name]=midi.connect(dev.port)
-      midi_devices[dev.name].event=function(data)
-        if dev.name~=midi_device_list[params:get("midi_in")] then
-          do return end
-        end
-        local msg=midi.to_msg(data)
-        if msg.type=="clock" then
-          do return end
-        end
-        if msg.type=="continue" or msg.type=="start" then
-          print("transport start via "..msg.type)
-          toggle_playing(true)
-        elseif msg.type=="stop" then
-          toggle_playing(false)
-        end
-        if msg.type=="note_on" then
-          if msg.ch<=9 and instruments[msg.ch]~=nil then
-            engine[instruments[msg.ch]](msg.vel,0.5,0,1,18000,0,0,0)
-          end
+      local msg=midi.to_msg(data)
+      if msg.type=="clock" then
+        do return end
+      end
+      if msg.type=="continue" or msg.type=="start" then
+        print("transport start via "..msg.type)
+        toggle_playing(true)
+      elseif msg.type=="stop" then
+        toggle_playing(false)
+      end
+      if msg.type=="note_on" then
+        if msg.ch<=9 and instruments[msg.ch]~=nil then
+          engine[instruments[msg.ch]](msg.vel,0.5,0,1,18000,0,0,0)
         end
       end
     end
@@ -185,6 +179,11 @@ function init()
   params:add_group("midi",2+(9*2))
   params:add_option("midi_in","midi in",midi_device_list,midi_in)
   params:add_option("midi_out","midi out",midi_device_list,1)
+
+  if _pacifist then
+    mft = _pacifist:new({devices=midi_devices, debug=false})
+  end
+
   local DEFAULT_NOTES={
     -- General MIDI standard
     36,-- Kick
@@ -213,9 +212,7 @@ function init()
     local cc_num = (i-1)*4
     params:set_action(ins.."vol",function(x)
       engine[ins.."_amp"](util.dbamp(x))
-      mft:set(ins.."vol", mft.main_ch, cc_num)
     end)
-    mft:init_param(ins.."vol", mft.main_ch, cc_num, 0.1)
   end
 
   params:add_group("effects",4)
@@ -249,17 +246,13 @@ function init()
     params:add_option(ins.."division","clock division",division_options_,3)
     params:set_action(ins.."division",function(x)
       drm[ins_i].division=division_options[x]
-      mft:set(ins.."division", mft.shift_ch, cc_num)
     end)
-    mft:init_param(ins.."division", mft.shift_ch, cc_num, 1)
 
     params:add_control(ins.."swing","swing",controlspec.new(0,100,"lin",1,50,"%",1/100))
     local swing_cc = cc_num+1
     params:set_action(ins.."swing",function(x)
       drm[ins_i].swing=math.floor(x)
-      mft:set(ins.."swing", mft.shift_ch, swing_cc)
     end)
-    mft:init_param(ins.."swing", mft.shift_ch, swing_cc, 1)
 
     for i=1,mic_num do
       params:add{type="control",id=ins.."mic"..i,name=mic_names[i].." mic",controlspec=controlspec.new(-36,36,'lin',0.1,-9,'',0.1/(36+96)),formatter=function(v)
@@ -273,30 +266,20 @@ function init()
         else
           engine[ins.."_mix"](util.dbamp(params:get(ins.."mic1")),util.dbamp(params:get(ins.."mic2")),util.dbamp(params:get(ins.."mic3")))
         end
-        mft:set(ins.."mic"..i, mft.main_ch, mic_cc_num)
       end)
-      mft:init_param(ins.."mic"..i, mft.main_ch, mic_cc_num, 0.1)
     end
 
     params:add_control(ins.."pan","pan",controlspec.new(-1,1,"lin",0.01,0,"",0.01/2))
     local pan_cc = cc_num+2
     params:set_action(ins.."pan",function(x)
-      mft:set(ins.."pan", mft.shift_ch, pan_cc)
     end)
-    mft:init_param(ins.."pan", mft.shift_ch, pan_cc, 0.01)
 
     params:add_control(ins.."rate","rate",controlspec.new(-2,2,"lin",0.01,1,"x",0.01/2))
 
     params:add_control(ins.."reverbSend","reverb send",controlspec.new(0,100,"lin",1,0,"%",1/100))
-    local reverb_cc = cc_num+3
-    params:set_action(ins.."reverbSend",function(x)
-      mft:set(ins.."reverbSend", mft.shift_ch, reverb_cc)
-      if mic_num == 2 then mft:set(ins.."reverbSend", mft.main_ch, reverb_cc) end
+      local reverb_cc = cc_num+3
+      params:set_action(ins.."reverbSend",function(x)
     end)
-    mft:init_param(ins.."reverbSend", mft.shift_ch, reverb_cc, 1)
-    if mic_num == 2 then
-      mft:init_param(ins.."reverbSend", mft.main_ch, reverb_cc, 1)
-    end
 
     params:add_control(ins.."delaySend","delay send",controlspec.new(0,100,"lin",1,0,"%",1/100))
     params:add{type="binary",name="trigger",id=ins.."trigger",behavior="trigger",
@@ -304,6 +287,95 @@ function init()
         trigger_ins(ins_i)
       end
     }
+  end
+end
+
+mft_bank = 1
+mft_bank_max = 3
+mft_bank_colors = {
+  {1,30},{64,80},{100,111}
+}
+
+mft_param_sends = {
+  {
+    {"bdvol","bddivision"},{"bdswing","bdmic1"},{"bdpan","bdmic2"},{"bdreverbSend","bdmic3"},
+    {"sdvol","sddivision"},{"sdswing","sdmic1"},{"sdpan","sdmic2"},{"sdreverbSend","sdmic3"},
+    {"csvol","csdivision"},{"csswing","csmic1"},{"cspan","csmic2"},{"csreverbSend","csmic3"},
+    {"chvol","chdivision"},{"chswing"},{"chpan"},{"chreverbSend"}
+  },
+  {
+    {"ohvol","ohdivision"},{"ohswing"},{"ohpan"},{"ohreverbSend"},
+    {"rcvol","rcdivision"},{"rcswing","rcmic1"},{"rcpan","rcmic2"},{"rcreverbSend","rcmic3"},
+    {"htvol","htdivision"},{"htswing"},{"htpan"},{"htreverbSend"},
+    {"mtvol","mtdivision"},{"mtswing"},{"mtpan"},{"mtreverbSend"}
+  },
+  {
+    {"ltvol","ltdivision"},{"ltswing"},{"ltpan"},{"ltreverbSend"},
+    {},{},{},{},
+    {},{},{},{},
+    {},{},{},{}
+  }
+}
+
+function get_param_send(n)
+  return mft_param_sends[mft_bank][n][mft.state[n]+1]
+end
+
+function get_param_send_toggled(n)
+  return mft_param_sends[mft_bank][n][(1-mft.state[n])+1]
+end
+
+function mft_enc(n,d)
+  mft.last_turned = n
+  mft.enc_activity_count = 15
+  mft.activity_count = 15
+  mft.updated_param = mft_param(n,d)
+end
+
+function mft_param(n,d)
+  local param = get_param_send(n)
+  if param == nil then
+    mft:send(n,0)
+    return ""
+  end
+  params:set(param, params:get(param)+d)
+  mft:send_param(n,param)
+  return param
+end
+
+function mft_key(n,z)
+  local on = z==1
+  mft.momentary[n] = on and 1 or 0
+  if on then
+      mft.last_pressed = n
+      mft.key_activity_count = 15
+      mft.activity_count = 15
+      if n>=1 and n<=16 then
+        if get_param_send_toggled(n) ~= nil then
+          mft:toggle_key(n)
+        end
+      elseif n==17 then
+        mft_bank = util.wrap(mft_bank-1, 1, mft_bank_max)
+        mft:reset_key()
+      elseif n==18 then
+      elseif n==19 then
+      elseif n==20 then
+        mft_bank = util.wrap(mft_bank+1, 1, mft_bank_max)
+        mft:reset_key()
+      elseif n==21 then
+      elseif n==22 then
+      end
+  else
+
+  end
+end
+
+function redraw_mft()
+  for i=1,16 do
+    local color = mft_bank_colors[mft_bank][mft.state[i]+1]
+    if get_param_send(i) == nil then color=0 end
+    mft:led(i, color)
+    mft_param(i,0)
   end
 end
 
@@ -533,7 +605,7 @@ function redraw()
   screen.clear()
   if show_grid>0 then
     draw_pattern()
-  -- elseif mft.show_update_count>0 then
+  -- elseif mft.activity_count>0 then
   --   draw_dials()
   else
     draw_drums()
@@ -541,7 +613,7 @@ function redraw()
   end
   screen.level(15)
   screen.move(120,7)
-  if mft.show_update_count>0 then
+  if mft.activity_count>0 and mft.updated_param ~= nil and mft.updated_param ~= "" then
     display_mft_update()
   else
     screen.text_right(instruments[g_sel_drm].." / "..props[g_sel_ptn].."  "..(lattice.enabled and ">" or "||"))
